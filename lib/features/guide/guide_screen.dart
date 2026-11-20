@@ -7,7 +7,7 @@ import '../../core/library_controller.dart';
 import '../../core/models/models.dart';
 import '../player/player_screen.dart';
 
-/// EPG guide with a horizontal timeline (SwiptV "TV Guide" style).
+/// EPG guide with a horizontal timeline ("TV Guide").
 /// Left column = channel names; right = programmes on a
 /// 3-pixel-per-minute grid, 3 hours of horizon.
 class GuideScreen extends StatefulWidget {
