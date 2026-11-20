@@ -36,8 +36,8 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                     padding: EdgeInsets.all(24),
                     child: Text(
                       'Noch keine Playlisten.\nXtream-Logins oder M3U-URLs '
-                      'deiner Abos lassen sich hier kombinieren — wie bei '
-                      'SwiptV: mehrere Subscriptions, eine Plattform.',
+                      'deiner Abos lassen sich hier kombinieren — mehrere '
+                      'Abos, eine Plattform.',
                       textAlign: TextAlign.center,
                     ),
                   ),
