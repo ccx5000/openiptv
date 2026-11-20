@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../../app/widgets.dart';
 import '../../core/library_controller.dart';
+import '../../core/database/database.dart' as db;
+import '../../core/models/models.dart';
 import '../player/player_screen.dart';
 
 class HomeTab extends StatelessWidget {
@@ -13,90 +15,209 @@ class HomeTab extends StatelessWidget {
     final lib = context.watch<LibraryController>();
     final continueWatching = lib.continueWatching();
     final favorites = lib.favoriteChannels();
+    final live = lib.channels(MediaKind.live);
+    final movies = lib.channels(MediaKind.vod);
+    final series = lib.channels(MediaKind.series);
 
     return lib.loadingLibrary
         ? const Center(child: CircularProgressIndicator())
         : ListView(
+            padding: const EdgeInsets.only(bottom: 32),
             children: [
-              const SectionHeader('Weiter schauen'),
-              if (continueWatching.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: Text('Noch nichts angesehen — viel Spaß!'),
-                )
-              else
-                SizedBox(
-                  height: 200,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    scrollDirection: Axis.horizontal,
-                    itemCount: continueWatching.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 12),
-                    itemBuilder: (context, i) {
-                      final p = continueWatching[i];
-                      final channel = lib
-                          .channelByKey(p.key.substring(p.key.indexOf(':') + 1));
-                      return SizedBox(
-                        width: 160,
+              _Hero(continueWatching, favorites, live),
+              if (continueWatching.isNotEmpty) ...[
+                const SectionHeader('Weiter schauen'),
+                _Rail(
+                  height: 220,
+                  items: continueWatching.map((p) {
+                    final channel =
+                        lib.channelByKey(p.key.substring(p.key.indexOf(':') + 1));
+                    return _RailItem(
+                      width: 170,
+                      child: PosterCard(
+                        title: p.title,
+                        logoUrl: channel?.logoUrl,
+                        subtitle: _remaining(p),
+                        progress: p.durationMs <= 0
+                            ? 0.0
+                            : p.positionMs / p.durationMs,
+                        onTap: channel == null
+                            ? null
+                            : () => _openPlayer(context, channel.key),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+              if (favorites.isNotEmpty) ...[
+                const SectionHeader('Favoriten'),
+                _Rail(
+                  height: 220,
+                  items: [
+                    for (final c in favorites)
+                      _RailItem(
+                        width: 170,
                         child: PosterCard(
-                          title: p.title,
-                          logoUrl: channel?.logoUrl,
-                          subtitle: _remaining(p),
-                          progress: p.durationMs <= 0
-                              ? 0.0
-                              : p.positionMs / p.durationMs,
-                          onTap: channel == null
-                              ? null
-                              : () => Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          PlayerScreen(channelKey: channel.key),
-                                    ),
-                                  ),
+                          channel: c,
+                          subtitle: c.category,
+                          selected: true,
+                          onTap: () => _openPlayer(context, c.key),
                         ),
-                      );
-                    },
+                      ),
+                  ],
+                ),
+              ],
+              if (live.isNotEmpty) ...[
+                const SectionHeader('Live TV'),
+                _Rail(
+                  height: 220,
+                  items: [
+                    for (final c in live.take(30))
+                      _RailItem(
+                        width: 170,
+                        child: PosterCard(
+                          channel: c,
+                          badge: 'LIVE',
+                          subtitle: c.category,
+                          onTap: () => _openPlayer(context, c.key),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+              if (movies.isNotEmpty) ...[
+                const SectionHeader('Filme'),
+                _Rail(
+                  height: 250,
+                  items: [
+                    for (final c in movies.take(30))
+                      _RailItem(
+                        width: 140,
+                        child: PosterCard(
+                          channel: c,
+                          subtitle: c.category,
+                          progress: lib.isViewed(c) ? 1.0 : null,
+                          onTap: () => _openPlayer(context, c.key),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+              if (series.isNotEmpty) ...[
+                const SectionHeader('Serien'),
+                _Rail(
+                  height: 250,
+                  items: [
+                    for (final c in series.take(30))
+                      _RailItem(
+                        width: 140,
+                        child: PosterCard(
+                          channel: c,
+                          subtitle: c.category,
+                          onTap: () => _openPlayer(context, c.key),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+              if (continueWatching.isEmpty &&
+                  favorites.isEmpty &&
+                  live.isEmpty &&
+                  movies.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 120),
+                  child: EmptyState(
+                    Icons.add_circle_outline_rounded,
+                    'Noch nichts da',
+                    hint:
+                        'Erst unter Einstellungen → Playlisten '
+                        'eine Playlist hinzufügen.',
                   ),
                 ),
-              const SectionHeader('Favoriten'),
-              favorites.isEmpty
-                  ? const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16),
-                      child:
-                          Text('Noch keine Favoriten — Stern in Live TV antippen.'),
-                    )
-                  : SizedBox(
-                      height: 210,
-                      child: ListView.separated(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        scrollDirection: Axis.horizontal,
-                        itemCount: favorites.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 12),
-                        itemBuilder: (context, i) {
-                          final c = favorites[i];
-                          return SizedBox(
-                            width: 160,
-                            child: PosterCard(
-                              channel: c,
-                              subtitle: c.kind,
-                              onTap: () => Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => PlayerScreen(channelKey: c.key),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-              const SizedBox(height: 32),
             ],
           );
+  }
+
+  void _openPlayer(BuildContext context, String key) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => PlayerScreen(channelKey: key)),
+    );
   }
 
   String _remaining(p) {
     if (p.durationMs <= 0) return '';
     final left = Duration(milliseconds: p.durationMs - p.positionMs);
     return 'Noch ${left.inMinutes} Min.';
+  }
+}
+
+class _Hero extends StatelessWidget {
+  final List<WatchProgress> continueWatching;
+  final List<db.ChannelRow> favorites;
+  final List<db.ChannelRow> live;
+
+  const _Hero(this.continueWatching, this.favorites, this.live);
+
+  @override
+  Widget build(BuildContext context) {
+    final lib = context.read<LibraryController>();
+    final p = continueWatching.isEmpty ? null : continueWatching.first;
+    final heroChannel = p != null
+        ? lib.channelByKey(p.key.substring(p.key.indexOf(':') + 1))
+        : (favorites.isNotEmpty
+            ? favorites.first
+            : (live.isNotEmpty ? live.first : null));
+    if (heroChannel == null) return const SizedBox(height: 8);
+
+    return HeroBanner(
+      channel: heroChannel,
+      logoUrl: heroChannel.logoUrl,
+      title: p?.title ?? heroChannel.name,
+      subtitle: p != null
+          ? 'Weiter schauen'
+          : heroChannel.kind == 'live'
+              ? 'Live · ${heroChannel.category}'
+              : heroChannel.category,
+      progress: p == null || p.durationMs <= 0
+          ? null
+          : p.positionMs / p.durationMs,
+      onPlay: () => Navigator.of(context).push(
+        MaterialPageRoute(
+            builder: (_) => PlayerScreen(channelKey: heroChannel.key)),
+      ),
+    );
+  }
+}
+
+class _Rail extends StatelessWidget {
+  final double height;
+  final List<Widget> items;
+
+  const _Rail({required this.height, required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: height,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        scrollDirection: Axis.horizontal,
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 14),
+        itemBuilder: (_, i) => items[i],
+      ),
+    );
+  }
+}
+
+class _RailItem extends StatelessWidget {
+  final double width;
+  final Widget child;
+
+  const _RailItem({required this.width, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(width: width, child: child);
   }
 }

@@ -19,7 +19,7 @@ class _VodScreenState extends State<VodScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lib = context.watch<LibraryController>();
+    context.watch<LibraryController>();
     return DefaultTabController(
       length: 2,
       child: Scaffold(
@@ -69,27 +69,12 @@ class _VodGridState extends State<_VodGrid> {
 
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-          child: Row(
-            children: [
-              Expanded(
-                child: DropdownButton<String>(
-                  isExpanded: true,
-                  value: current,
-                  hint: const Text('Alle Kategorien'),
-                  icon: const Icon(Icons.filter_list_rounded),
-                  items: [
-                    const DropdownMenuItem(
-                        value: null, child: Text('Alle Kategorien')),
-                    for (final c in categories)
-                      DropdownMenuItem(value: c, child: Text(c)),
-                  ],
-                  onChanged: (v) => setState(() => _category = v),
-                ),
-              ),
-            ],
-          ),
+        const SizedBox(height: 8),
+        CategoryChips(
+          categories: categories,
+          selected: current,
+          allLabel: 'Alle Kategorien',
+          onSelect: (v) => setState(() => _category = v),
         ),
         Expanded(
           child: items.isEmpty

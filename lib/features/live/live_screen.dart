@@ -33,43 +33,25 @@ class _LiveScreenState extends State<LiveScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (!widget.compact)
+        if (!widget.compact) ...[
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
             child: Row(
               children: [
-                Text('Live TV',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w800)),
-                const SizedBox(width: 24),
-                Expanded(
-                  child: DropdownButton<String>(
-                    isExpanded: true,
-                    value: current,
-                    hint: const Text('Alle Kategorien'),
-                    icon: const Icon(Icons.filter_list_rounded),
-                    items: [
-                      const DropdownMenuItem(
-                          value: null, child: Text('Alle Kategorien')),
-                      for (final c in categories)
-                        DropdownMenuItem(value: c, child: Text(c)),
-                    ],
-                    onChanged: (v) => setState(() => _category = v),
-                  ),
+                Text(
+                  'Live TV',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.5,
+                      ),
                 ),
+                const Spacer(),
                 if (current != null)
-                  IconButton(
-                    tooltip: 'Kategorie sperren (Parental Control)',
-                    icon: Icon(
-                      (channels.isNotEmpty &&
-                              lib.isCategoryLocked(
-                                  channels.first.playlistId, current))
-                          ? Icons.lock_rounded
-                          : Icons.lock_open_rounded,
-                    ),
-                    onPressed: () async {
+                  _LockChip(
+                    locked: channels.isNotEmpty &&
+                        lib.isCategoryLocked(
+                            channels.first.playlistId, current),
+                    onToggle: () async {
                       if (channels.isEmpty) return;
                       await lib.toggleCategoryLock(
                           channels.first.playlistId, current);
@@ -78,6 +60,13 @@ class _LiveScreenState extends State<LiveScreen> {
               ],
             ),
           ),
+          CategoryChips(
+            categories: categories,
+            selected: current,
+            onSelect: (v) => setState(() => _category = v),
+          ),
+          const SizedBox(height: 10),
+        ],
         Expanded(
           child: channels.isEmpty
               ? const EmptyState(
@@ -87,20 +76,21 @@ class _LiveScreenState extends State<LiveScreen> {
                 )
               : LayoutBuilder(builder: (context, constraints) {
                   final width = constraints.maxWidth;
-                  final columns = (width / 170).clamp(2, 8).floor();
+                  final columns = (width / 185).clamp(2, 8).floor();
                   return GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: columns,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      childAspectRatio: 0.78,
+                      mainAxisSpacing: 14,
+                      crossAxisSpacing: 14,
+                      childAspectRatio: 0.80,
                     ),
                     itemCount: channels.length,
                     itemBuilder: (context, i) {
                       final c = channels[i];
                       return PosterCard(
                         channel: c,
+                        badge: 'LIVE',
                         subtitle: c.category,
                         selected: lib.isFavorite(c.key),
                         onTap: () => Navigator.of(context).push(
@@ -114,6 +104,53 @@ class _LiveScreenState extends State<LiveScreen> {
                 }),
         ),
       ],
+    );
+  }
+}
+
+class _LockChip extends StatelessWidget {
+  final bool locked;
+  final Future<void> Function() onToggle;
+
+  const _LockChip({required this.locked, required this.onToggle});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message:
+          locked ? 'Kategorie entsperren' : 'Kategorie sperren (Kinofreundlich)',
+      child: InkWell(
+        onTap: () => onToggle(),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          decoration: BoxDecoration(
+            color: locked
+                ? const Color(0xFFE5484D).withValues(alpha: 0.16)
+                : AppPalette.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: locked
+                  ? const Color(0xFFE5484D).withValues(alpha: 0.5)
+                  : Colors.white.withValues(alpha: 0.07),
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                locked ? Icons.lock_rounded : Icons.lock_open_rounded,
+                size: 18,
+                color: locked ? const Color(0xFFE5484D) : AppPalette.textDim,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                locked ? 'Gesperrt' : 'Sperren',
+                style: const TextStyle(fontSize: 12.5),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

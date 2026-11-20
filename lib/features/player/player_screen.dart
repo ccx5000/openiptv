@@ -6,6 +6,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:provider/provider.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../../app/widgets.dart';
 import '../../core/library_controller.dart';
 
 /// media_kit based player with an overlay UI (info bar, play/pause,
@@ -169,8 +170,21 @@ class _ControlsOverlayState extends State<_ControlsOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: Colors.black38,
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          stops: [0.0, 0.14, 0.5, 0.86, 1.0],
+          colors: [
+            Color(0xD9000000),
+            Colors.transparent,
+            Colors.transparent,
+            Colors.transparent,
+            Color(0xD9000000),
+          ],
+        ),
+      ),
       child: Column(
         children: [
           // Top bar
@@ -190,21 +204,9 @@ class _ControlsOverlayState extends State<_ControlsOverlay> {
                   ),
                 ),
                 if (widget.isLive)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 12),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                              color: Colors.red, shape: BoxShape.circle),
-                        ),
-                        const SizedBox(width: 6),
-                        const Text('LIVE',
-                            style: TextStyle(fontWeight: FontWeight.w800)),
-                      ],
-                    ),
+                  const Padding(
+                    padding: EdgeInsets.only(right: 12),
+                    child: _LivePill(),
                   ),
                 IconButton(
                   tooltip: widget.favorite
@@ -228,35 +230,36 @@ class _ControlsOverlayState extends State<_ControlsOverlay> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              IconButton(
-                iconSize: 48,
-                onPressed: () {
+              _GlassButton(
+                size: 58,
+                icon: Icons.replay_10_rounded,
+                onTap: () {
                   final target = widget.player.state.position -
                       const Duration(seconds: 10);
                   widget.player
                       .seek(target.isNegative ? Duration.zero : target);
                 },
-                icon: const Icon(Icons.replay_10_rounded),
               ),
-              const SizedBox(width: 24),
-              IconButton(
-                iconSize: 72,
-                onPressed: () {
+              const SizedBox(width: 26),
+              _GlassButton(
+                size: 82,
+                icon: _playing
+                    ? Icons.pause_rounded
+                    : Icons.play_arrow_rounded,
+                primary: true,
+                onTap: () {
                   if (_playing) {
                     widget.player.pause();
                   } else {
                     widget.player.play();
                   }
                 },
-                icon: Icon(_playing
-                    ? Icons.pause_circle_outline_rounded
-                    : Icons.play_circle_outline_rounded),
               ),
-              const SizedBox(width: 24),
-              IconButton(
-                iconSize: 48,
-                onPressed: () => widget.player.seek(const Duration(seconds: 10)),
-                icon: const Icon(Icons.forward_10_rounded),
+              const SizedBox(width: 26),
+              _GlassButton(
+                size: 58,
+                icon: Icons.forward_10_rounded,
+                onTap: () => widget.player.seek(const Duration(seconds: 10)),
               ),
             ],
           ),
@@ -310,6 +313,81 @@ class _ControlsOverlayState extends State<_ControlsOverlay> {
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GlassButton extends StatelessWidget {
+  final double size;
+  final IconData icon;
+  final bool primary;
+  final VoidCallback onTap;
+
+  const _GlassButton({
+    required this.size,
+    required this.icon,
+    required this.onTap,
+    this.primary = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final child = Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: primary ? AppPalette.accentGradient : null,
+        color: primary ? null : Colors.white.withValues(alpha: 0.12),
+        border: Border.all(
+          color: primary
+              ? Colors.transparent
+              : Colors.white.withValues(alpha: 0.18),
+        ),
+        boxShadow: const [
+          BoxShadow(color: Colors.black38, blurRadius: 18),
+        ],
+      ),
+      child: Icon(
+        icon,
+        size: size * 0.52,
+        color: Colors.white,
+      ),
+    );
+    return InkWell(
+      onTap: onTap,
+      customBorder: const CircleBorder(),
+      child: child,
+    );
+  }
+}
+
+class _LivePill extends StatelessWidget {
+  const _LivePill();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE5484D).withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE5484D).withValues(alpha: 0.55)),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.circle, size: 8, color: Color(0xFFE5484D)),
+          SizedBox(width: 6),
+          Text(
+            'LIVE',
+            style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2),
+          ),
         ],
       ),
     );
