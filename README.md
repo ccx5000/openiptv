@@ -1,52 +1,70 @@
 # OpenIPTV
 
-Cross-platform IPTV-Player für **Android / Android TV, iOS und macOS (Intel & Apple Silicon)** —
-inspiriert von [SwiptV](https://www.swiptv.app/) und [UHF](https://getuhf.com/).
+Cross-platform IPTV-Player für **Android / Android TV, iOS und macOS (Intel & Apple Silicon)**.
 
-Die Referenz-Apps sind beide Apple-only; dieses Projekt kombiniert ihre Kernfunktionen in **einer**
-Flutter-Codebase und erweitert sie um Android/Android-TV sowie echte Multi-Account-Synchronisation:
+Eine Flutter-Codebase mit allen Kernfunktionen eines modernen IPTV-Players plus
+echter Multi-Account-Synchronisation zwischen allen Geräten:
 
 ## Features
 
-- **Multiple Subscriptions, eine Plattform** (SwiptV-Prinzip): beliebig viele Playlisten kombiniert
+- **Multiple Subscriptions, eine Plattform**: beliebig viele Playlisten kombiniert
 - **Xtream Codes API** (Server/User/Pass) und **M3U/M3U8-URLs** mit separater EPG-URL
 - **EPG / TV-Guide** (XMLTV) mit Zeitleiste, plus „Jetzt läuft"-Banner im Player
 - **Live-TV, Movies, Serien** mit Kategorien, Logos, Grid-Ansicht
-- **Globale Suche** Live + VOD + Serien (SwiptV-Feature)
-- **Favoriten, ausblenden, Content-Manager** (beide Referenz-Apps)
+- **Globale Suche** Live + VOD + Serien
+- **Favoriten, ausblenden, Content-Manager**
 - **Weiter schauen / Continue Watching** inkl. Fortsetzpositions-Sync
-- **Parental Control** mit PIN über gesperrte Kategorien (SwiptV-Feature)
-- **Multi-User-Profile** (Netflix-Prinzip) pro Konto — jedes Profil hat eigene Favoriten, Historie, Playlists
-- **Cross-Device-Sync** über Supabase: Auth (E-Mail), Profile, Favoriten, Playlisten, Watch-History — läuft zwischen Android TV ↔ iPhone/iPad ↔ Intel-Mac ↔ Apple-Silicon-Mac
-- **Player**: `media_kit` (libmpv) — Hardware-Decoding, HLS, HDR/Dolby-Vision-Container auf allen drei Plattformen, TV-Fokus-Navigation, PiP auf iOS/macOS
+- **Parental Control** mit PIN über gesperrte Kategorien
+- **Multi-User-Profile** (Netflix-Prinzip) pro Konto — jedes Profil hat eigene
+  Favoriten, Historie, Playlists
+- **Cross-Device-Sync**: Auth (E-Mail), Profile, Favoriten, Playlisten,
+  Watch-History — läuft zwischen Android TV ↔ iPhone/iPad ↔ Intel-Mac ↔
+  Apple-Silicon-Mac
+- **Player**: `media_kit` (libmpv) — Hardware-Decoding, HLS, TV-Fokus-Navigation,
+  PiP auf iOS/macOS
 
-## Schnellstart
+## Dokumentation
 
-Voraussetzung: [Flutter](https://docs.flutter.dev/get-started/install) ≥ 3.24 (macOS-Developer-Tools
-für iOS/macOS, Android SDK für Android/TV).
+| Guide | Inhalt |
+|---|---|
+| **[docs/INSTALL.md](docs/INSTALL.md)** | **Komplett-Installationsanleitung**: Backend-Container auf dem **Unraid-Server** (Docker Compose Manager oder manuelles `docker run`), Geräte-Anbindung, Backups, Fernzugriff, Troubleshooting |
+| **[docs/BUILD.md](docs/BUILD.md)** | **Kompilieren auf dem Mac**: Voraussetzungen (Xcode, Android SDK, Flutter), `./tool/setup.sh`, Release-Builds — macOS `.app`/`.dmg`, Android-TV-`.apk`, iOS-`.ipa` inkl. Signing-Optionen |
+| **[docker/GUIDE.md](docker/GUIDE.md)** | Kurz-Guide zum eigenständigen Docker-Stack (PostgreSQL 16 + Sync-Server) |
+
+## Schnellstart (Entwicklung auf dem Mac)
+
+Voraussetzung: [Flutter](https://docs.flutter.dev/get-started/install) ≥ 3.24
+(siehe auch [docs/BUILD.md](docs/BUILD.md) für die volle Umgebung).
 
 ```bash
 git clone <repo-url> openiptv && cd openiptv
 ./tool/setup.sh          # Plattform-Projekte generieren, Deps, Codegen
-flutter run              # erster Start (App wählt Zielgerät)
+flutter run -d macos     # erster Start
 ```
 
-Das Setup-Skript erstellt die nativen `android/`-, `ios/`- und `macos/`-Projekte (bewusst nicht
-eingecheckt — Standard-Flutter-Workflow) und patcht das Android-Manifest für Leanback/Android TV.
-macOS-Intel-Builds werden automatisch von Flutter unterstützt (kein Extra-Schritt nötig).
+Das Setup-Skript erstellt die nativen `android/`-, `ios/`- und `macos/`-Projekte
+(bewusst nicht eingechecked — Standard-Flutter-Workflow), patcht das
+Android-Manifest für Leanback/Android TV und die macOS-Netzwerk-Entitlements.
+Intel-Mac-Builds werden nativ unterstützt (Universal Binary).
 
-## Backend einrichten (Sync) — zwei Wege
+## Backend einrichten (Sync) — Standard: eigener Docker-Server
 
 **A) Eigenständiger Docker-Server (Standard, keine Cloud):**
-PostgreSQL 16 + ein mitgelieferter Sync-Server (Node: JWT-Auth, Multi-User-Profile,
-bidirektionaler Sync). Komplette Anleitung: [docker/GUIDE.md](docker/GUIDE.md).
+PostgreSQL 16 + mitgelieferter Sync-Server (Node: JWT-Auth, Multi-User-Profile,
+bidirektionaler Sync). Für **Unraid/non-USB-Server**:
+[docs/INSTALL.md](docs/INSTALL.md); für alle anderen Hosts: [docker/GUIDE.md](docker/GUIDE.md).
 
 ```bash
 cd docker && docker compose up -d --build   # DB + Server starten
 flutter run -d macos                        # App verbindet sich auf localhost:8080
 ```
 
-Andere Geräte: `--dart-define=BACKEND_URL=http://<server-ip>:8080`.
+Andere Geräte bauen mit der Server-IP:
+
+```bash
+flutter build apk --release --dart-define=BACKEND=rest \
+  --dart-define=BACKEND_URL=http://<server-ip>:8080
+```
 
 **B) Supabase-Cloud (optional):**
 
@@ -56,29 +74,30 @@ Andere Geräte: `--dart-define=BACKEND_URL=http://<server-ip>:8080`.
 3. App mit `--dart-define=BACKEND=supabase --dart-define=SUPABASE_URL=… --dart-define=SUPABASE_ANON_KEY=…`
    starten (oder Werte in `lib/core/config.dart`).
 
-**Sync-Ablauf (offline-first):** Favoriten/Fortschritt/Playlisten werden zuerst in der lokalen
-SQLite-DB (Drift) geschrieben und dann asynchron nach Supabase repliziert; beim Start und
-regelmäßig läuft der Rückweg (Pull). Offline funktional.
+**Sync-Ablauf (offline-first):** Favoriten/Fortschritt/Playlisten werden zuerst
+in der lokalen SQLite-DB (Drift) geschrieben und dann asynchron zum Backend
+repliziert; beim Start und regelmäßig läuft der Rückweg (Pull). Offline voll
+funktional.
 
-Anmeldedaten der IPTV-Anbieter verlassen das Gerät nicht — im Sync werden nur Metadaten
-(Name, Kategorien, IDs) geteilt, nichts Klartext-Kritisches.
+Anmeldedaten der IPTV-Anbieter verlassen das Gerät nicht — im Sync werden nur
+Metadaten (Name, Kategorien, IDs) geteilt, nichts Klartext-Kritisches.
 
 ## Projektstruktur
 
 ```
 lib/
-  app/            App-Shell, Theme, Routing
+  app/            App-Shell, Theme, adaptive Navigation (Rail TV/Desktop, Bar Mobile)
   core/
     config.dart   Backend-Wahl (rest/supabase) + URLs per dart-define
+    backend/      Backend-Interface + Rest/Supabase-Adapter
     database/     Drift-Schema (lokale SQLite-DB)
     models/       Channel, EpgEntry, Playlist, MediaKind ...
-    services/     Xtream-Client, M3U-, XMLTV-Parser, Auth, Sync, Library
+    services/     Xtream-Client, M3U-/XMLTV-Parser, Auth, Sync, Library
   features/
-    backend/      Backend-Interface + Rest/Supabase-Adapter
     auth/         Login/Registrierung
     profiles/     Profil-Auswahl & Verwaltung
     playlists/    Playlisten hinzufügen/verwalten
-    home/         Adaptive Shell (Nav-Rail TV/Desktop, BottomBar Mobile)
+    home/         Continue Watching, Favoriten, Navigation
     live/         Live-TV Kanäle
     guide/        EPG-TV-Guide
     vod/          Movies & Serien
@@ -86,19 +105,18 @@ lib/
     player/       media_kit-Player mit Overlay-UI
     settings/     Parental Control, Sync-Status, Profil
 docker/           Eigenständiger Docker-Stack (Postgres + Sync-Server) + Guide
-server/           — (liegt unter docker/server)
 supabase/         Schema.sql für Cloud-Variante
-tool/setup.sh     Bootstrap-Skript
+tool/setup.sh     Bootstrap-Skript (Plattform-Projekte, Codegen, Patches)
 ```
 
 ## Roadmap nach MVP
 
-- Catch-up/Replay bei unterstützten Anbietern (UHF-Feature)
-- Aufnahme via Companion-Server (UHF-Server-Feature)
+- Catch-up/Replay bei unterstützten Anbietern
+- Aufnahme via Companion-Server
 - VPN-Integration, externe Player (VLC/Just Player deeplink)
 - Watch-together, Trailer, Trending-Content
 
 ## Rechtliches
 
-Der Player liefert **keinen Content**. Alle Streams, Server und Anmeldedaten kommen vom Anwender.
-Nur legale Inhalte nutzen (Guideline 5.2.3-konform, siehe UHF).
+Der Player liefert **keinen Content**. Alle Streams, Server und Anmeldedaten
+kommen vom Anwender. Nur legale Inhalte nutzen.

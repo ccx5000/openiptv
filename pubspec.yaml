@@ -1,7 +1,7 @@
 name: open_iptv
 description: >-
   Cross-platform IPTV player (Android / Android TV, iOS, macOS Intel & Apple
-  Silicon) inspired by SwiptV and UHF: Xtream Codes + M3U playlists, XMLTV EPG,
+  Silicon) Xtream Codes + M3U playlists, XMLTV EPG,
   multi-user profiles and cross-device sync via Supabase.
 publish_to: "none"
 version: 0.1.0+1
