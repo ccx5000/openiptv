@@ -26,7 +26,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ListTile(
           leading: const Icon(Icons.person_rounded),
           title: const Text('Angemeldet als'),
-          subtitle: Text(auth.client.auth.currentUser?.email ?? '-'),
+          subtitle: Text(auth.userEmail ?? '-'),
         ),
         ListTile(
           leading: const Icon(Icons.sync_rounded),

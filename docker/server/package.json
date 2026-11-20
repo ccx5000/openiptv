@@ -1,0 +1,11 @@
+{
+  "name": "openiptv-sync",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Self-hosted sync/auth backend for OpenIPTV",
+  "main": "server.js",
+  "dependencies": {
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.12.0"
+  }
+}

@@ -35,18 +35,27 @@ Das Setup-Skript erstellt die nativen `android/`-, `ios/`- und `macos/`-Projekte
 eingecheckt — Standard-Flutter-Workflow) und patcht das Android-Manifest für Leanback/Android TV.
 macOS-Intel-Builds werden automatisch von Flutter unterstützt (kein Extra-Schritt nötig).
 
-## Supabase einrichten (Sync)
+## Backend einrichten (Sync) — zwei Wege
 
-1. Neues Projekt auf [supabase.com](https://supabase.com) anlegen.
-2. `supabase/schema.sql` komplett in den **SQL-Editor** kopieren und ausführen.
-   (Erstellt Profile-, Favoriten-, Progress-Tabellen, RLS und Auto-Profil-Trigger.)
-3. URL + anon Key rein ins Projekt: `lib/core/config.dart` oder per `--dart-define`:
-   ```bash
-   flutter run \
-     --dart-define=SUPABASE_URL=https://xxxx.supabase.co \
-     --dart-define=SUPABASE_ANON_KEY=ey...
-   ```
-4. Optional: Apple Sign-In in der Supabase-Console aktivieren (iOS/macOS), sonst E-Mail-Login.
+**A) Eigenständiger Docker-Server (Standard, keine Cloud):**
+PostgreSQL 16 + ein mitgelieferter Sync-Server (Node: JWT-Auth, Multi-User-Profile,
+bidirektionaler Sync). Komplette Anleitung: [docker/GUIDE.md](docker/GUIDE.md).
+
+```bash
+cd docker && docker compose up -d --build   # DB + Server starten
+flutter run -d macos                        # App verbindet sich auf localhost:8080
+```
+
+Andere Geräte: `--dart-define=BACKEND_URL=http://<server-ip>:8080`.
+
+**B) Supabase-Cloud (optional):**
+
+1. Projekt auf [supabase.com](https://supabase.com) anlegen.
+2. `supabase/schema.sql` komplett im SQL-Editor ausführen
+   (Profile-, Favoriten-, Progress-Tabellen, RLS, Auto-Profil-Trigger).
+3. App mit `--dart-define=BACKEND=supabase --dart-define=SUPABASE_URL=… --dart-define=SUPABASE_ANON_KEY=…`
+   starten (oder Werte in `lib/core/config.dart`).
+
 **Sync-Ablauf (offline-first):** Favoriten/Fortschritt/Playlisten werden zuerst in der lokalen
 SQLite-DB (Drift) geschrieben und dann asynchron nach Supabase repliziert; beim Start und
 regelmäßig läuft der Rückweg (Pull). Offline funktional.
@@ -60,11 +69,12 @@ Anmeldedaten der IPTV-Anbieter verlassen das Gerät nicht — im Sync werden nur
 lib/
   app/            App-Shell, Theme, Routing
   core/
-    config.dart   Supabase-URL/-Key (dart-define oder Default)
+    config.dart   Backend-Wahl (rest/supabase) + URLs per dart-define
     database/     Drift-Schema (lokale SQLite-DB)
     models/       Channel, EpgEntry, Playlist, MediaKind ...
     services/     Xtream-Client, M3U-, XMLTV-Parser, Auth, Sync, Library
   features/
+    backend/      Backend-Interface + Rest/Supabase-Adapter
     auth/         Login/Registrierung
     profiles/     Profil-Auswahl & Verwaltung
     playlists/    Playlisten hinzufügen/verwalten
@@ -75,7 +85,9 @@ lib/
     search/       Globale Suche
     player/       media_kit-Player mit Overlay-UI
     settings/     Parental Control, Sync-Status, Profil
-supabase/         Schema.sql (Backend)
+docker/           Eigenständiger Docker-Stack (Postgres + Sync-Server) + Guide
+server/           — (liegt unter docker/server)
+supabase/         Schema.sql für Cloud-Variante
 tool/setup.sh     Bootstrap-Skript
 ```
 

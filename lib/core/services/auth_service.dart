@@ -1,66 +1,56 @@
 import 'package:flutter/foundation.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../config.dart';
 import '../models/models.dart';
+import 'backend/backend.dart';
 
-/// Supabase auth wrapper: email/password sign-up, sign-in, sign-out and
-/// session state. Additional providers (Apple/Google) plug in here.
+/// Auth + profile facade over the selected backend (self-hosted REST by
+/// default, Supabase cloud optional). UI only talks to this class.
 class AuthService extends ChangeNotifier {
-  /// Initialized in [init]: the Supabase singleton client whose session
-  /// is persisted by supabase_flutter (survives app restarts).
-  late final SupabaseClient client;
+  final Backend backend;
 
-  bool _initialized = false;
+  AuthService(this.backend);
+
   bool _busy = false;
+  bool _initialized = false;
   String? _error;
 
   bool get initialized => _initialized;
   bool get busy => _busy;
   String? get error => _error;
-  bool get signedIn => client.auth.currentSession != null;
+  bool get signedIn => backend.signedIn;
+  String? get userId => backend.userId;
+  String? get userEmail => backend.userEmail;
 
-  String? get userId => client.auth.currentUser?.id;
-
-  /// Restores a persisted session; call once on app start.
+  /// Establishes the backend (session restore); idempotent.
   Future<void> init() async {
-    if (_initialized) return;
-    await Supabase.initialize(
-      url: AppConfig.supabaseUrl,
-      anonKey: AppConfig.supabaseAnonKey,
-    );
-    client = Supabase.instance.client;
+    await backend.init();
     _initialized = true;
-    client.auth.onAuthStateChange.listen((_) => notifyListeners());
     notifyListeners();
   }
 
   Future<bool> signIn(String email, String password) =>
-      _guard(() => client.auth.signInWithPassword(
-            email: email,
-            password: password,
-          ));
+      _guard(() => backend.signIn(email, password));
 
   Future<bool> signUp(String email, String password) =>
-      _guard(() => client.auth.signUp(email: email, password: password));
+      _guard(() => backend.signUp(email, password));
 
   Future<void> signOut() async {
-    await client.auth.signOut();
+    await backend.signOut();
     notifyListeners();
   }
 
-  Future<bool> _guard(Future<AuthResponse> Function() action) async {
+  Future<bool> _guard(Future<void> Function() action) async {
     _busy = true;
     _error = null;
     notifyListeners();
     try {
       await action();
       return true;
-    } on AuthException catch (e) {
+    } on BackendException catch (e) {
       _error = e.message;
       return false;
     } catch (e) {
-      _error = 'Netzwerkfehler: $e';
+      _error = 'Verbindung fehlgeschlagen: $e';
       return false;
     } finally {
       _busy = false;
@@ -68,35 +58,17 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  // ---- Manage profiles (multi user within one account) ------------------
+  // ---- Profiles (multi user within one account) -------------------------
 
-  Future<List<UserProfile>> fetchProfiles() async {
-    final uid = userId;
-    if (uid == null) return const [];
-    final rows = await client
-        .from('profiles')
-        .select()
-        .eq('user_id', uid)
-        .order('created_at');
-    return rows
-        .map<UserProfile>((r) => UserProfile(
-              id: r['id'].toString(),
-              name: r['name'].toString(),
-              avatarColor: r['avatar_color']?.toString() ?? '#4F8CFF',
-              isKids: (r['is_kids'] as bool?) ?? false,
-            ))
-        .toList();
-  }
+  Future<List<UserProfile>> fetchProfiles() => backend.fetchProfiles();
 
   Future<void> addProfile(String name, {bool kids = false}) async {
-    await client.from('profiles').insert({
-      'user_id': userId!,
-      'name': name,
-      'is_kids': kids,
-    });
+    await backend.addProfile(name, kids: kids);
+    notifyListeners();
   }
 
   Future<void> deleteProfile(String profileId) async {
-    await client.from('profiles').delete().eq('id', profileId);
+    await backend.deleteProfile(profileId);
+    notifyListeners();
   }
 }

@@ -1,117 +1,113 @@
-# Guide: Self-hosted Supabase-Server mit Docker (Datenbank, Auth, Sync)
+# Guide: Eigenständiger Docker-Server (PostgreSQL + Sync-Server)
 
-Diese Anleitung startet das komplette Backend von OpenIPTV **lokal oder auf deinem eigenen
-Server in Docker** — Postgres-Datenbank, Auth-API, REST-API und die Studio-Weboberfläche.
-Die App läuft dann komplett gegen deinen eigenen Server, keine Cloud nötig.
+Das ganze Backend in **eigenständigen Containern** — ohne Supabase-Cloud, ohne CLI:
+
+```
+┌──────────────────── docker compose ────────────────────┐
+│  ┌──────────────────┐        ┌──────────────────────┐  │
+│  │ postgres:16      │ ◄────── │ openiptv-sync        │  │
+│  │ DB + Schema      │         │ (Node: Auth + REST)  │  │
+│  └──────────────────┘        └──────────▲───────────┘  │
+└─────────────────────────────────────────┼──────────────┘
+                                          │ :8080
+                      TV / Handy / Mac ───┘  (REST + JWT)
+```
+
+Enthalten:
+- **`docker-compose.yml`** — PostgreSQL 16 + Sync-Server, beide mit persistentem Volume
+- **`initdb/001-schema.sql`** — Datenbankschema (Users, Profile, Playlists, Favoriten, Watch-Progress, Views), wird beim ersten Start automatisch geladen
+- **`server/`** — der Sync-Server (Plain Node 20, keine Frameworks): JWT-Login/Registrierung, Multi-User-Profile, bidirektionaler Sync mit `updated_at`-Watermarks
 
 ---
 
-## 1. Voraussetzungen
+## 1. Starten
 
-- **Docker Desktop** ([docker.com](https://docs.docker.com/desktop/)) oder Docker Engine ≥ 24
-- **Supabase CLI** — Installationswege:
-  - macOS: `brew install supabase/tap/supabase`
-  - Linux: `brew install supabase/tap/supabase` (via Homebrew) oder Binary von
-    [github.com/supabase/cli/releases](https://github.com/supabase/cli/releases)
-  - Alternativ ohne globalen Install: `npx supabase@latest --version`
-
-## 2. Stack starten (3 Befehle)
-
-Im Projektordner:
+Voraussetzung: Docker (Desktop oder Engine). Dann im Projektordner:
 
 ```bash
-./tool/local-backend.sh start
+cd docker
+docker compose up -d --build
+docker compose logs -f sync     # bis "OpenIPTV sync server listening :8080"
 ```
 
-Das Skript macht automatisch:
-1. `supabase init` — legt `supabase/config.toml` an (nur beim ersten Mal)
-2. `supabase start` — zieht alle Container und startet sie:
+Prüfen (Schnittstelle antwortet, wenn der Server lebt):
 
-| Container | Zweck |
+```bash
+http -v GET http://127.0.0.1:8080/          # → {"error":"not found"}
+# oder im Browser http://127.0.0.1:8080/ öffnen
+```
+
+## 2. App verbinden
+
+Das Standard-Backend der App ist dieser REST-Server (`BACKEND=rest`).
+Auf dem selben Mac reicht:
+
+```bash
+flutter run -d macos
+```
+
+Von anderen Geräten (iPhone, Android TV) aus die LAN-IP des Macs/Servers verwenden:
+
+```bash
+# Beispiel: Server läuft auf 192.168.1.50
+flutter run \
+  --dart-define=BACKEND=rest \
+  --dart-define=BACKEND_URL=http://192.168.1.50:8080
+```
+
+In der App: Registrieren (E-Mail + Passwort ab 6 Zeichen) → Profil wählen → Playlist hinzufügen.
+Der Login läuft komplett gegen deinen Postgres-Container (Passwort als scrypt-Hash, nie im
+Klartext), das JWT gilt 365 Tage.
+
+## 3. Ports / Firewall
+
+| Port | Dienst |
 |---|---|
-| `supabase-db` | PostgreSQL 15+ — die eigentliche Datenbank |
-| `supabase-auth` | GoTrue — E-Mail-Login/Registrierung für die App |
-| `supabase-rest` | PostgREST — die REST-API, mit der die App spricht |
-| `supabase-studio` | Web-UI zum Ansehen der Daten (Tabellen, User, SQL) |
+| 8080 | Sync-Server (REST) — muss für alle Geräte erreichbar sein |
+| 5432 | PostgreSQL — **nicht** nach außen freigeben (bleibt im internen Compose-Netz) |
 
-3. `supabase db reset` + Schema einspielen — `supabase/schema.sql` landet automatisch in der DB
-   (Profile, Favoriten, Watch-Progress, Views inkl. Row-Level-Security und Auto-Profil-Trigger)
-4. Ausgabe der Zugangsdaten in genau dem Format, das die App braucht:
+Linux-Server: `sudo ufw allow 8080/tcp` — oder HTTPS-Proxy (Abschnitt 5).
 
-```
-flutter run \
-  --dart-define=SUPABASE_URL=http://127.0.0.1:54321 \
-  --dart-define=SUPABASE_ANON_KEY=eyJhb...
-```
-
-## 3. App gegen den lokalen Server bauen/starten
+## 4. Admin / Wartung
 
 ```bash
-# Entwicklung
-flutter run \
-  --dart-define=SUPABASE_URL=http://127.0.0.1:54321 \
-  --dart-define=SUPABASE_ANON_KEY=<dein-anon-key>
+# In die Daten schauen:
+docker compose exec db psql -U openiptv -d openiptv -c 'select * from profiles;'
 
-# Release-Builds (Werte genauso anhängen)
-flutter build macos --release \
-  --dart-define=SUPABASE_URL=http://127.0.0.1:54321 \
-  --dart-define=SUPABASE_ANON_KEY=<dein-anon-key>
-```
-
-Registriere dich in der App mit einer beliebigen E-Mail + Passwort (der lokale Auth-Server
-sendet keine Bestätigungsmails — Login funktioniert direkt). Die Tabellen kannst du im Studio
-unter `http://127.0.0.1:54323` inspizieren.
-
-> **Achtung bei Android-Geräten/Emulatoren:** `127.0.0.1` zeigt auf das Gerät selbst.
-> Nutze stattdessen die LAN-IP deines Macs (z. B. `http://192.168.1.50:54321`) —
-> und darauf achten, dass Port 54321 nicht nur an `127.0.0.1` gebunden ist
-> (in `supabase/config.toml` unter `[api] port`/`host` einstellbar).
-
-## 4. Auf einem eigenen/virtuellen Linux-Server
-
-```bash
-ssh dein-server
-git clone https://github.com/ccx5000/openiptv.git && cd openiptv
-./tool/local-backend.sh start
-# Port 54321 in der Firewall öffnen, z. B.:
-sudo ufw allow 54321/tcp
-```
-
-Dann in der App überall `SUPABASE_URL=http://<server-ip>:54321` verwenden.
-**Zum öffentlichen Betrieb** zwingend: HTTPS davor schalten (z. B. Caddy):
-
-```
-deine-domain.de {
-    reverse_proxy 127.0.0.1:54321
-    reverse_proxy /_studio/* 127.0.0.1:54323
-}
-```
-
-und in der App `SUPABASE_URL=https://deine-domain.de` setzen. Ohne HTTPS reist
-E-Mail/Passwort im Klartext.
-
-## 5. Nützliche Befehle
-
-```bash
-./tool/local-backend.sh status    # URLs + Keys zeigen
-./tool/local-backend.sh stop      # Container stoppen (Daten bleiben)
-./tool/local-backend.sh reset     # DB komplett zurücksetzen + Schema neu einspielen
-supabase studio                   # Studio öffnen
-docker ps | grep supabase         # laufende Container
-```
-
-## 6. Datensicherung
-
-Die Daten liegen im Docker-Volume `supabase_db_<projekt>`:
-
-```bash
-docker exec supabase-db pg_dump -U postgres postgres > backup-$(date +%F).sql
+# Backup:
+docker compose exec db pg_dump -U openiptv openiptv > backup-$(date +%F).sql
 # Restore:
-cat backup-2026-11-20.sql | docker exec -i supabase-db psql -U postgres postgres
+cat backup-2026-01-01.sql | docker compose exec -T db psql -U openiptv openiptv
+
+# Alles platt + frisches Schema:
+docker compose down -v && docker compose up -d --build
+
+# Nur den Sync-Server aktualisieren (nach Code-Änderung):
+docker compose up -d --build sync
 ```
 
-## 7. Was dieses Setup NICHT ist
+## 5. Produktiv betreiben (Checkliste)
 
-- Kein fremder Cloud-Host — nur dein eigener Sync-Server (das ist der Sinn)
-- Die App nutzt Auth + REST + Postgres; genau das liefern die Container
-- Schema-Änderungen machst du über `supabase/schema.sql` + `./tool/local-backend.sh reset`
+- [ ] `POSTGRES_PASSWORD` und `JWT_SECRET` in `docker-compose.yml` auf starke Zufallswerte ändern
+- [ ] HTTPS davor schalten, sonst sind Login-Daten im Klartext unterwegs. Beispiel Caddy
+      (stellt automatisch Zertifikate aus): `deine-domain.de { reverse_proxy 127.0.0.1:8080 }`
+      → in der App dann `BACKEND_URL=https://deine-domain.de`
+- [ ] Postgres-Port **nicht** öffnen; nur 8080 bzw. 443
+- [ ] Backups (Abschnitt 4) z. B. täglich per Cron
+
+## 6. Architektur-Notizen für Entwickler
+
+- Die App kennt zwei Backends über `lib/core/backend/backend.dart`:
+  `RestBackend` (dieser Server, Standard) und `SupabaseBackend` (Cloud, optional via
+  `--dart-define=BACKEND=supabase --dart-define=SUPABASE_URL=… --dart-define=SUPABASE_ANON_KEY=…`).
+- Sync-Protokoll: Push = `POST /sync/:profileId` mit Upsert-Payloads; Pull = `GET /sync/:profileId`
+  mit `since_…`-Timestamps (Watermark), lokal per Drift-`insertOnConflictUpdate`. Konflikte
+  werden last-write-wins über `updated_at` aufgelöst.
+- Auth: `POST /auth/register|login` → JWT (Bearer) → jede Sync-/Profil-Route prüft in SQL die
+  Besitzerschaft (Profil ↔ `user_id`).
+
+## 7. Alternative: Supabase-Cloud
+
+Wer lieber Supabase-Cloud nutzt: `supabase/schema.sql` im SQL-Editor der Cloud ausführen,
+dann `--dart-define=BACKEND=supabase --dart-define=SUPABASE_URL=… --dart-define=SUPABASE_ANON_KEY=…`.
+Das lokale Supabase-Stack via `supabase start` (Supabase CLI) funktioniert genauso.

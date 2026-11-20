@@ -1,0 +1,34 @@
+name: openiptv
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: openiptv
+      POSTGRES_PASSWORD: openiptv      # im produktiven Einsatz ändern!
+      POSTGRES_DB: openiptv
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openiptv -d openiptv"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  sync:
+    build: ./server
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://openiptv:openiptv@db:5432/openiptv
+      JWT_SECRET: change-me-in-production   # im produktiven Einsatz ändern!
+      PORT: "8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+
+volumes:
+  db-data:

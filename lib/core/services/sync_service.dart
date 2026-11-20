@@ -1,23 +1,25 @@
 import 'dart:async';
 
 import 'package:drift/drift.dart' show Value;
-import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../backend/backend.dart';
 import '../database/database.dart';
 
-/// Two-way sync between the local Drift DB and Supabase, scoped to one
-/// profile. Local writes always succeed first (offline-first); remote
-/// pushes happen debounced, pulls use an `updated_at` watermark.
+/// Two-way sync between the local Drift DB and the selected backend,
+/// scoped to one profile. Local writes always succeed first (offline-first);
+/// pushes are debounced, pulls use an `updated_at` watermark per table.
 class SyncService {
   final AppDatabase db;
-  final SupabaseClient client;
+  final Backend backend;
 
   Timer? _debounce;
   bool syncing = false;
   DateTime? lastSyncAt;
   String? lastError;
 
-  SyncService(this.db, this.client);
+  final Map<String, String> _cursors = {};
+
+  SyncService(this.db, this.backend);
 
   void schedulePush() {
     _debounce?.cancel();
@@ -43,146 +45,158 @@ class SyncService {
   // ---- PUSH --------------------------------------------------------------
 
   Future<void> push(String profileId) async {
-    final c = client;
+    final playlists = (await db.select(db.playlistRows).get())
+        .map((r) => <String, dynamic>{
+              'name': r.name,
+              'kind': r.kind,
+              'host': r.host,
+              'm3u_url': r.m3uUrl,
+              'epg_url': r.epgUrl,
+              'updated_at': r.updatedAt.toIso8601String(),
+            })
+        .toList();
 
     final favs = await (db.select(db.favoriteRows)
           ..where((r) => r.profileId.equals(profileId)))
         .get();
-    for (final f in favs) {
-      await c.from('favorites').upsert({
-        'profile_id': f.profileId,
-        'playlist_id': f.playlistId,
-        'item_kind': f.kind,
-        'item_id': f.itemId,
-        'title': f.title,
-        'logo_url': f.logoUrl,
-        'state': f.state,
-        'updated_at': f.updatedAt.toIso8601String(),
-      }, onConflict: 'profile_id,item_kind,item_id,state');
-    }
+    final favorites = favs
+        .map((f) => <String, dynamic>{
+              'playlist_id': f.playlistId,
+              'item_kind': f.kind,
+              'item_id': f.itemId,
+              'title': f.title,
+              'logo_url': f.logoUrl,
+              'state': f.state,
+              'updated_at': f.updatedAt.toIso8601String(),
+            })
+        .toList();
 
-    final prog = await (db.select(db.progressRows)
+    final progs = await (db.select(db.progressRows)
           ..where((r) => r.profileId.equals(profileId)))
         .get();
-    for (final p in prog) {
-      await c.from('watch_progress').upsert({
-        'profile_id': p.profileId,
-        'playlist_id': p.playlistId,
-        'item_kind': p.kind,
-        'item_id': p.itemId,
-        'title': p.title,
-        'position_ms': p.positionMs,
-        'duration_ms': p.durationMs,
-        'updated_at': p.updatedAt.toIso8601String(),
-      }, onConflict: 'profile_id,item_kind,item_id');
-    }
+    final progress = progs
+        .map((p) => <String, dynamic>{
+              'playlist_id': p.playlistId,
+              'item_kind': p.kind,
+              'item_id': p.itemId,
+              'title': p.title,
+              'position_ms': p.positionMs,
+              'duration_ms': p.durationMs,
+              'updated_at': p.updatedAt.toIso8601String(),
+            })
+        .toList();
 
-    final views = await (db.select(db.viewedRows)
+    final vws = await (db.select(db.viewedRows)
           ..where((r) => r.profileId.equals(profileId)))
         .get();
-    for (final v in views) {
-      await c.from('views').upsert({
-        'profile_id': v.profileId,
-        'item_kind': v.kind,
-        'item_id': v.itemId,
-        'updated_at': v.updatedAt.toIso8601String(),
-      }, onConflict: 'profile_id,item_kind,item_id');
-    }
+    final views = vws
+        .map((v) => <String, dynamic>{
+              'item_kind': v.kind,
+              'item_id': v.itemId,
+              'updated_at': v.updatedAt.toIso8601String(),
+            })
+        .toList();
 
-    final pls = await db.select(db.playlistRows).get();
-    for (final pl in pls) {
-      await c.from('playlists').upsert({
-        'profile_id': profileId,
-        'name': pl.name,
-        'kind': pl.kind,
-        'host': pl.host,
-        'm3u_url': pl.m3uUrl,
-        'epg_url': pl.epgUrl,
-        'updated_at': pl.updatedAt.toIso8601String(),
-      });
-    }
+    await backend.push(
+      profileId,
+      PushPayload(
+        playlists: playlists,
+        favorites: favorites,
+        watchProgress: progress,
+        views: views,
+      ),
+    );
   }
 
   // ---- PULL --------------------------------------------------------------
 
+  Future<String> _cursor(String table) async {
+    if (!_cursors.containsKey(table)) {
+      _cursors[table] = await db.meta('sync.$table') ?? '1970-01-01T00:00:00Z';
+    }
+    return _cursors[table]!;
+  }
+
+  Future<void> _advanceCursor(
+      String table, List<Map<String, dynamic>> rows) async {
+    final current = await _cursor(table);
+    var newest = current;
+    for (final r in rows) {
+      final u = r['updated_at']?.toString() ?? '';
+      if (u.compareTo(newest) > 0) newest = u;
+    }
+    if (newest != current) {
+      _cursors[table] = newest;
+      await db.setMeta('sync.$table', newest);
+    }
+  }
+
   Future<void> pull(String profileId) async {
-    final c = client;
+    final result = await backend.pull(profileId, {
+      'favorites': await _cursor('favorites'),
+      'watch_progress': await _cursor('watch_progress'),
+      'views': await _cursor('views'),
+    });
 
-    for (final table in const ['favorites', 'watch_progress', 'views']) {
-      final cursor = await db.meta('sync.$table');
-      final rows = await c
-          .from(table)
-          .select()
-          .eq('profile_id', profileId)
-          .gt('updated_at', cursor ?? '1970-01-01T00:00:00Z');
-      String newest = cursor ?? '1970-01-01T00:00:00Z';
-      for (final r in rows) {
-        final row = r as Map<String, dynamic>;
-        final updated = row['updated_at']?.toString() ?? '';
-        if (updated.compareTo(newest) > 0) newest = updated;
-        await _applyRemote(table, profileId, row);
-      }
-      if (rows.isNotEmpty) await db.setMeta('sync.$table', newest);
+    for (final r in result.favorites) {
+      final updated =
+          DateTime.tryParse(r['updated_at']?.toString() ?? '') ?? DateTime.now();
+      final kind = r['item_kind'].toString();
+      final itemId = r['item_id'].toString();
+      await db.into(db.favoriteRows).insertOnConflictUpdate(
+            FavoriteRowsCompanion.insert(
+              key: '$profileId:$kind:$itemId:${r['state']}',
+              profileId: profileId,
+              playlistId: r['playlist_id']?.toString(),
+              kind: kind,
+              itemId: itemId,
+              title: r['title'].toString(),
+              logoUrl: r['logo_url']?.toString(),
+              state: r['state'].toString(),
+              updatedAt: Value(updated),
+            ),
+          );
     }
-  }
+    await _advanceCursor('favorites', result.favorites);
 
-  Future<void> _applyRemote(
-      String table, String profileId, Map<String, dynamic> row) async {
-    final updated =
-        DateTime.tryParse(row['updated_at']?.toString() ?? '') ?? DateTime.now();
-    final kind = row['item_kind'].toString();
-    final itemId = row['item_id'].toString();
-
-    switch (table) {
-      case 'favorites':
-        await db.into(db.favoriteRows).insertOnConflictUpdate(
-              FavoriteRowsCompanion.insert(
-                key: _favKey(row),
-                profileId: profileId,
-                playlistId: row['playlist_id']?.toString(),
-                kind: kind,
-                itemId: itemId,
-                title: row['title'].toString(),
-                logoUrl: row['logo_url']?.toString(),
-                state: row['state'].toString(),
-                updatedAt: Value(updated),
-              ),
-            );
-        break;
-      case 'watch_progress':
-        await db.into(db.progressRows).insertOnConflictUpdate(
-              ProgressRowsCompanion.insert(
-                key: _progKey(row),
-                profileId: profileId,
-                playlistId: row['playlist_id']?.toString(),
-                kind: kind,
-                itemId: itemId,
-                title: row['title'].toString(),
-                positionMs: (row['position_ms'] as int?) ?? 0,
-                durationMs: (row['duration_ms'] as int?) ?? 0,
-                updatedAt: Value(updated),
-              ),
-            );
-        break;
-      case 'views':
-        await db.into(db.viewedRows).insertOnConflictUpdate(
-              ViewedRowsCompanion.insert(
-                key: '$profileId:$kind:$itemId',
-                profileId: profileId,
-                kind: kind,
-                itemId: itemId,
-                updatedAt: Value(updated),
-              ),
-            );
-        break;
+    for (final r in result.watchProgress) {
+      final updated =
+          DateTime.tryParse(r['updated_at']?.toString() ?? '') ?? DateTime.now();
+      final kind = r['item_kind'].toString();
+      final itemId = r['item_id'].toString();
+      await db.into(db.progressRows).insertOnConflictUpdate(
+            ProgressRowsCompanion.insert(
+              key: '$profileId:$kind:$itemId',
+              profileId: profileId,
+              playlistId: r['playlist_id']?.toString(),
+              kind: kind,
+              itemId: itemId,
+              title: r['title'].toString(),
+              positionMs: ((r['position_ms'] as num?) ?? 0).toInt(),
+              durationMs: ((r['duration_ms'] as num?) ?? 0).toInt(),
+              updatedAt: Value(updated),
+            ),
+          );
     }
+    await _advanceCursor('watch_progress', result.watchProgress);
+
+    for (final r in result.views) {
+      final updated =
+          DateTime.tryParse(r['updated_at']?.toString() ?? '') ?? DateTime.now();
+      final kind = r['item_kind'].toString();
+      final itemId = r['item_id'].toString();
+      await db.into(db.viewedRows).insertOnConflictUpdate(
+            ViewedRowsCompanion.insert(
+              key: '$profileId:$kind:$itemId',
+              profileId: profileId,
+              kind: kind,
+              itemId: itemId,
+              updatedAt: Value(updated),
+            ),
+          );
+    }
+    await _advanceCursor('views', result.views);
   }
-
-  String _favKey(Map<String, dynamic> row) =>
-      '${row['profile_id']}:${row['item_kind']}:${row['item_id']}:${row['state']}';
-
-  String _progKey(Map<String, dynamic> row) =>
-      '${row['profile_id']}:${row['item_kind']}:${row['item_id']}';
 
   Future<void> dispose() async {
     _debounce?.cancel();
