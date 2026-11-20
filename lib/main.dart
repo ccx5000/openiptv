@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'app/app.dart';
 import 'core/backend/backend.dart';
-import 'core/backend/rest_backend.dart';
+import 'core/backend/local_backend.dart';
 import 'core/backend/supabase_backend.dart';
 import 'core/config.dart';
 import 'core/database/database.dart';
@@ -21,14 +21,20 @@ Future<void> main() async {
   final db = AppDatabase();
   final settings = SettingsService(db);
 
-  final Backend backend = AppConfig.backendMode == 'supabase'
-      ? SupabaseBackend()
-      : RestBackend(AppConfig.backendUrl);
+  // Offline first: the app works without any account. Sync (optional) is
+  // enabled later in Settings and survives restarts via restoreSync().
+  final local = LocalBackend(db);
+  final BackendRouter backend = BackendRouter(local);
   await backend.init();
 
-  final auth = AuthService(backend);
+  final auth = AuthService(backend, settings, local);
   final sync = SyncService(db, backend);
   final library = LibraryController(db, settings, sync);
+  if (AppConfig.backendMode == 'supabase') {
+    await backend.use(SupabaseBackend());
+  } else {
+    await auth.restoreSync();
+  }
 
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
@@ -37,6 +43,7 @@ Future<void> main() async {
       providers: [
         Provider<AppDatabase>.value(value: db),
         Provider<SettingsService>.value(value: settings),
+        Provider<BackendRouter>.value(value: backend),
         Provider<Backend>.value(value: backend),
         ChangeNotifierProvider<AuthService>.value(value: auth),
         Provider<SyncService>.value(value: sync),

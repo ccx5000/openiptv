@@ -85,18 +85,22 @@ class RestBackend implements Backend {
     if (email != null) await _storage.write(key: _kEmail, value: email);
   }
 
+  /// Signs in by username; password is optional (private server setup).
   @override
-  Future<void> signIn(String email, String password) async {
+  Future<void> signIn(String username, String password) async {
     final j = await _unauthCall(
-        'POST', '/auth/login', {'email': email, 'password': password});
-    await _storeSession(j['token'].toString(), j['userId'].toString(), email);
+        'POST', '/auth/login', {'username': username, 'password': password});
+    await _storeSession(
+        j['token'].toString(), j['userId'].toString(), username);
   }
 
+  /// Creates the account with a username only (password optional).
   @override
-  Future<void> signUp(String email, String password) async {
+  Future<void> signUp(String username, String password) async {
     final j = await _unauthCall(
-        'POST', '/auth/register', {'email': email, 'password': password});
-    await _storeSession(j['token'].toString(), j['userId'].toString(), email);
+        'POST', '/auth/register', {'username': username, 'password': password});
+    await _storeSession(
+        j['token'].toString(), j['userId'].toString(), username);
   }
 
   Future<Map<String, dynamic>> _unauthCall(

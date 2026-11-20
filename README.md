@@ -17,7 +17,7 @@ echter Multi-Account-Synchronisation zwischen allen Geräten:
 - **Parental Control** mit PIN über gesperrte Kategorien
 - **Multi-User-Profile** (Netflix-Prinzip) pro Konto — jedes Profil hat eigene
   Favoriten, Historie, Playlists
-- **Cross-Device-Sync**: Auth (E-Mail), Profile, Favoriten, Playlisten,
+- **Cross-Device-Sync (optional)**: Konto nur mit Benutzername, Profile, Favoriten, Playlisten,
   Watch-History — läuft zwischen Android TV ↔ iPhone/iPad ↔ Intel-Mac ↔
   Apple-Silicon-Mac
 - **Player**: `media_kit` (libmpv) — Hardware-Decoding, HLS, TV-Fokus-Navigation,
@@ -47,7 +47,12 @@ Das Setup-Skript erstellt die nativen `android/`-, `ios/`- und `macos/`-Projekte
 Android-Manifest für Leanback/Android TV und die macOS-Netzwerk-Entitlements.
 Intel-Mac-Builds werden nativ unterstützt (Universal Binary).
 
-## Backend einrichten (Sync) — Standard: eigener Docker-Server
+Die App startet **komplett offline** — ohne Konto, ohne Server. Favoriten,
+Historie und Playlisten liegen lokal. Der Sync zu anderen Geräten wird optional
+**in den Einstellungen** eingerichtet (Benutzername genügt, Passwort ist
+optional).
+
+## Sync-Server einrichten (optional) — eigener Docker-Host
 
 **A) Eigenständiger Docker-Server (Standard, keine Cloud):**
 PostgreSQL 16 + mitgelieferter Sync-Server (Node: JWT-Auth, Multi-User-Profile,
@@ -56,14 +61,8 @@ bidirektionaler Sync). Für **Unraid/non-USB-Server**:
 
 ```bash
 cd docker && docker compose up -d --build   # DB + Server starten
-flutter run -d macos                        # App verbindet sich auf localhost:8080
-```
-
-Andere Geräte bauen mit der Server-IP:
-
-```bash
-flutter build apk --release --dart-define=BACKEND=rest \
-  --dart-define=BACKEND_URL=http://<server-ip>:8080
+# App startet offline; Sync wird in der App unter Einstellungen → Geräte-Sync
+# mit der Server-URL + Benutzername aktiviert
 ```
 
 **B) Supabase-Cloud (optional):**

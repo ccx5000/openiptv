@@ -146,12 +146,18 @@ Egal welches Gerät — die Backend-Adresse ist überall gleich:
 http://<UNRAID-IP>:8080
 ```
 
-Die Adresse wird **beim Kompilieren** in die App eingebrannt (`BACKEND_URL`,
-siehe `docs/BUILD.md`). Danach läuft der Erstkontakt identisch:
+Die App startet danach **komplett offline** — kein Login nötig. Sync wird
+optional in der App aktiviert:
 
-1. App öffnen → **Registrieren** (E-Mail + Passwort, mind. 6 Zeichen)
-2. **Profil wählen** — ein Profil pro Person (Kinderprofile optional)
-3. **Einstellungen → Playlisten → Playlist hinzufügen**:
+1. App öffnen — sie läuft sofort (Profil „Ich“ ist schon da)
+2. **Einstellungen → Geräte-Sync** → Server-URL `http://<UNRAID-IP>:8080` +
+   **Benutzername** eintragen (das Konto wird automatisch erstellt; Passwort
+   optional) → Verbinden
+3. Auf dem **zweiten Gerät** dieselbe URL + denselben Benutzernamen eintragen
+   — fertig: Favoriten/Historie/Playlisten laufen jetzt zwischen allen
+   Geräten dieses Benutzernamens synchron
+4. **Profil wählen** — ein Profil pro Person (Kinderprofile optional)
+5. **Einstellungen → Playlisten → Playlist hinzufügen**:
    - **Xtream Codes** (Standard bei IPTV-Abos): `server:port`, Nutzer, Passwort
    - **M3U**: M3U-URL + optionale XMLTV-EPG-URL (für den TV-Guide)
 4. Live TV: Stern = Favorit, Auge-durchgestrichen = ausblenden, Schloss = Kategorie
@@ -167,10 +173,10 @@ synchronisiert.
 | Symptom | Ursache / Lösung |
 |---|---|
 | „Verbindung fehlgeschlagen" beim Login | `BACKEND_URL` beim Build falsch oder Server nicht gestartet (`docker logs openiptv-sync`) |
-| Login geht am Mac, nicht am TV | APK war mit `127.0.0.1` gebaut — mit der Unraid-IP neu bauen |
+| Sync verbindet am Mac, nicht am TV | Im Sync-Dialog am TV die Unraid-IP statt `127.0.0.1` eintragen (kein Neubau nötig) |
 | Kanäle leer, Login ok | Playlist-Refresh: Einstellungen → Playlisten → Aktualisieren; bei Xtream `host:port` prüfen |
 | EPG fehlt bei M3U | XMLTV-URL fehlt — Playlisteintrag neu anlegen |
-| Sync-Fehler in Einstellungen | JWT abgelaufen (365 Tage) → Abmelden + Anmelden |
+| Sync-Fehler in Einstellungen | JWT abgelaufen (365 Tage) → Sync trennen + neu verbinden |
 | macOS: „kann nicht geöffnet werden" | Rechtsklick → Öffnen; alternativ `xattr -dr com.apple.quarantine` |
 
 Weiter mit dem Kompilieren: **[docs/BUILD.md](BUILD.md)**

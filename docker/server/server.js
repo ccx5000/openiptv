@@ -1,7 +1,7 @@
 // OpenIPTV self-hosted sync server — plain Node.js, no framework.
 // Endpoints:
-//   POST /auth/register {email,password} -> {token,userId}
-//   POST /auth/login    {email,password} -> {token,userId}
+//   POST /auth/register {username,password?} -> {token,userId}
+//   POST /auth/login    {username,password?} -> {token,userId}
 //   GET    /profiles                    -> [profile]
 //   POST   /profiles    {name,is_kids}
 //   DELETE /profiles/:id
@@ -75,31 +75,38 @@ const server = http.createServer(async (req, res) => {
   const path = url.pathname;
   try {
     if (req.method === 'POST' && path === '/auth/register') {
-      const { email, password } = await readBody(req);
-      if (!email || !email.includes('@') || !password || password.length < 6) {
-        return send(res, 400, { error: 'E-Mail oder Passwort zu kurz (min. 6 Zeichen)' });
+      const { username, password } = await readBody(req);
+      const name = String(username || '').trim().toLowerCase();
+      if (name.length < 2 || name.length > 64) {
+        return send(res, 400, { error: 'Benutzername: 2 bis 64 Zeichen' });
       }
-      const exists = await pool.query('select 1 from users where email = $1', [
-        email.toLowerCase(),
-      ]);
-      if (exists.rowCount) return send(res, 409, { error: 'E-Mail bereits registriert' });
+      if (password && password.length < 6) {
+        return send(res, 400, { error: 'Passwort zu kurz (min. 6 Zeichen)' });
+      }
+      const exists = await pool.query('select 1 from users where email = $1', [name]);
+      if (exists.rowCount) return send(res, 409, { error: 'Benutzername bereits vergeben' });
       const id = crypto.randomUUID();
+      const pwHash = password ? hashPassword(password) : '';
       await pool.query(
         'insert into users (id, email, password_hash) values ($1, $2, $3)',
-        [id, email.toLowerCase(), hashPassword(password)]
+        [id, name, pwHash]
       );
       const token = jwt.sign({ sub: id }, JWT_SECRET, { expiresIn: '365d' });
       return send(res, 201, { token, userId: id });
     }
 
     if (req.method === 'POST' && path === '/auth/login') {
-      const { email, password } = await readBody(req);
+      const { username, password } = await readBody(req);
       const r = await pool.query(
         'select id, password_hash from users where email = $1',
-        [(email || '').toLowerCase()]
+        [String(username || '').trim().toLowerCase()]
       );
-      if (!r.rowCount || !verifyPassword(password || '', r.rows[0].password_hash)) {
-        return send(res, 401, { error: 'Login fehlgeschlagen' });
+      if (!r.rowCount) return send(res, 401, { error: 'Konto nicht gefunden' });
+      const stored = r.rows[0].password_hash || '';
+      if (stored) {
+        if (!password || !verifyPassword(password, stored)) {
+          return send(res, 401, { error: 'Falsches Passwort' });
+        }
       }
       const token = jwt.sign({ sub: r.rows[0].id }, JWT_SECRET, { expiresIn: '365d' });
       return send(res, 200, { token, userId: r.rows[0].id });

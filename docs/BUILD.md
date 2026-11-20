@@ -112,24 +112,21 @@ bekommst du beim Kompilieren Fehler à la
 
 ---
 
-## 3. Backend-URL angeben (wichtig für Sync)
+## 3. Backend-URL (nur noch als Voreinstellung frueher Start)
 
-Standardmäßig zeigt die App auf `http://127.0.0.1:8080` (gut nur für Tests
-auf dem Mac mit lokal laufendem Backend). Für die **realen Geräte** gibst du
-beim Bauen die IP deines Unraid-Servers mit:
+Die App startet ohne Sync. Die Server-Adresse wird **in der App** eingegeben
+(Einstellungen → Geräte-Sync) und dort gespeichert — es ist also **kein
+Neukompilieren** nötig, wenn sich die Server-IP ändert.
 
-```bash
-UNRAID=192.168.1.50      # ← deine Unraid-IP (in Unraid: Settings → Network)
-```
-
-Jeder Build-Befehl unten bekommt dann diese Defines mit:
+Optional kannst du die URL als build-time-Voreinstellung (Vorbelegung des
+Eingabefelds) mitgeben:
 
 ```bash
---dart-define=BACKEND=rest --dart-define=BACKEND_URL=http://$UNRAID:8080
+UNRAID=192.168.1.50      # ← deine Unraid-IP
+DEF="--dart-define=BACKEND=rest --dart-define=BACKEND_URL=http://$UNRAID:8080"
 ```
 
-> Die IP ändert sich seltenst, aber wenn doch → neu bauen. Alternativ: DHCP-
-> Reservierung in deinem Router für das Unraid-Board oder ein Hostname.
+Die `DEF`-Variable wird in allen Build-Befehlen unten einfach mitangehängt.
 
 ---
 

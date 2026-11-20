@@ -27,6 +27,8 @@ class SyncService {
   }
 
   Future<void> fullSync() async {
+    // Offline mode: everything already lives in the local DB.
+    if (backend.userId == 'local') return;
     final profileId = await db.meta('active_profile_id');
     if (profileId == null) return;
     syncing = true;

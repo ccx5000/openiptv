@@ -71,13 +71,7 @@ class _ProfileGateState extends State<ProfileGate> {
             onPressed: () => _addProfile(context),
             icon: const Icon(Icons.add_circle_outline_rounded),
           ),
-          IconButton(
-            tooltip: 'Abmelden',
-            onPressed: () async {
-              await context.read<AuthService>().signOut();
-            },
-            icon: const Icon(Icons.logout_rounded),
-          ),
+
         ],
       ),
       body: GridView.builder(

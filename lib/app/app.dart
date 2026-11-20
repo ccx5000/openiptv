@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/library_controller.dart';
-import '../core/services/auth_service.dart';
-import '../features/auth/login_screen.dart';
 import '../features/guide/guide_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/live/live_screen.dart';
@@ -21,7 +19,7 @@ class OpenIptvApp extends StatelessWidget {
       title: 'OpenIPTV',
       debugShowCheckedModeBanner: false,
       theme: _dark(),
-      home: const AuthGate(),
+      home: const ProfileGate(),
     );
   }
 
@@ -52,33 +50,6 @@ class OpenIptvApp extends StatelessWidget {
       ),
       snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),
     );
-  }
-}
-
-/// Auth gate: shows login until a Supabase session exists, then the
-/// profile picker, then the app shell.
-class AuthGate extends StatefulWidget {
-  const AuthGate({super.key});
-
-  @override
-  State<AuthGate> createState() => _AuthGateState();
-}
-
-class _AuthGateState extends State<AuthGate> {
-  @override
-  void initState() {
-    super.initState();
-    context.read<AuthService>().init();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final auth = context.watch<AuthService>();
-    if (!auth.initialized) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-    if (!auth.signedIn) return const LoginScreen();
-    return const ProfileGate();
   }
 }
 
