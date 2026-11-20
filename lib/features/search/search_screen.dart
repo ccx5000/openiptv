@@ -6,7 +6,7 @@ import '../../core/library_controller.dart';
 import '../player/player_screen.dart';
 
 /// Global search across all channels/VOD/series of all playlists
-/// (global search across playlists).
+/// (the SwiptV global-search feature).
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
 

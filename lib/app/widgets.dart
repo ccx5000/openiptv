@@ -82,8 +82,6 @@ class PosterCard extends StatelessWidget {
                                 : Image.network(
                                     logo,
                                     fit: BoxFit.contain,
-                                    gaplessPlayback: true,
-                                    filterQuality: FilterQuality.medium,
                                     errorBuilder: (_, __, ___) =>
                                         const Icon(Icons.tv_rounded, size: 40),
                                   ),
@@ -124,7 +122,7 @@ class PosterCard extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.white.withOpacity(0.6),
+                                color: Colors.white.withOpacity( 0.6),
                               ),
                             ),
                         ],
@@ -162,7 +160,7 @@ class EmptyState extends StatelessWidget {
             Text(
               hint!,
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white.withOpacity(0.55)),
+              style: TextStyle(color: Colors.white.withOpacity( 0.55)),
             ),
           ],
         ],

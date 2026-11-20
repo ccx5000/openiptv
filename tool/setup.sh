@@ -15,6 +15,21 @@ flutter pub get
 echo "==> Generating Drift database code"
 dart run build_runner build --delete-conflicting-outputs
 
+echo "==> macOS: granting network entitlements (App Sandbox)"
+python3 - <<'PY'
+import pathlib, subprocess
+for f in ["macos/Runner/DebugProfile.entitlements", "macos/Runner/Release.entitlements"]:
+    p = pathlib.Path(f)
+    if not p.exists():
+        continue
+    for key in ["com.apple.security.network.client", "com.apple.security.network.server"]:
+        subprocess.run(
+            ["/usr/libexec/PlistBuddy", "-c", f"Add :{key} bool true", str(p)],
+            capture_output=True,
+        )
+    print(f"patched {f}")
+PY
+
 echo "==> Android: enabling Leanback (Android TV) support"
 python3 - <<'PY'
 import re, pathlib

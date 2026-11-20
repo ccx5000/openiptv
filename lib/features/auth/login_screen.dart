@@ -44,7 +44,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 Text(
                   'Ein Account, alle Geräte, mehrere Profile.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white.withOpacity(0.6)),
+                  style: TextStyle(color: Colors.white.withOpacity( 0.6)),
                 ),
                 const SizedBox(height: 32),
                 TextField(

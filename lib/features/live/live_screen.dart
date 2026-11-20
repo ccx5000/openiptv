@@ -7,7 +7,7 @@ import '../../core/models/models.dart';
 import '../player/player_screen.dart';
 
 /// Live-TV grid with category filter, favorite stars and hide action
-/// (content manager).
+/// (the SwiptV/UHF "content manager" pattern).
 class LiveScreen extends StatefulWidget {
   final bool compact; // embedded home variant without own filter bar
 
