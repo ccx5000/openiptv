@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/models.dart';
-import 'backend/backend.dart';
+import '../backend/backend.dart';
 
 /// Auth + profile facade over the selected backend (self-hosted REST by
 /// default, Supabase cloud optional). UI only talks to this class.

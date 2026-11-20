@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
-import '../config.dart';
 import '../models/models.dart';
 import 'backend.dart';
 
@@ -63,12 +62,10 @@ class RestBackend implements Backend {
     final uri = Uri.parse('$baseUrl$path').replace(
       queryParameters: query == null || query.isEmpty ? null : query,
     );
-    final res = await _http.request(
-      uri,
-      method: method,
-      headers: await _headers(),
-      body: body == null ? null : jsonEncode(body),
-    );
+    final req = http.Request(method, uri);
+    if (body != null) req.body = jsonEncode(body);
+    req.headers.addAll(await _headers());
+    final res = await http.Response.fromStream(await _http.send(req));
     final text = res.body.isEmpty ? '{}' : res.body;
     final json = jsonDecode(text) as Map<String, dynamic>;
     if (res.statusCode >= 400) {

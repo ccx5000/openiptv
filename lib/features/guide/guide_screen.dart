@@ -10,6 +10,9 @@ import '../player/player_screen.dart';
 /// EPG guide with a horizontal timeline.
 /// Left column = channel names; right = programmes on a
 /// 3-pixel-per-minute grid, 3 hours of horizon.
+const double kPxPerMinute = 3.0;
+const int kGuideHours = 3;
+
 class GuideScreen extends StatefulWidget {
   const GuideScreen({super.key});
 
@@ -18,9 +21,6 @@ class GuideScreen extends StatefulWidget {
 }
 
 class _GuideScreenState extends State<GuideScreen> {
-  static const double pxPerMinute = 3.0;
-  static const int hours = 3;
-
   late DateTime _start;
   Map<String, List<EpgEntry>> _epg = {};
   bool _epgLoading = false;
@@ -94,12 +94,12 @@ class _GuideScreenState extends State<GuideScreen> {
                   scrollDirection: Axis.horizontal,
                   physics: const ClampingScrollPhysics(),
                   child: SizedBox(
-                    width: 60.0 * pxPerMinute * hours + 200,
+                    width: 60.0 * kPxPerMinute * kGuideHours + 200,
                     child: Row(
                       children: [
-                        for (var h = 0; h <= hours; h++)
+                        for (var h = 0; h <= kGuideHours; h++)
                           SizedBox(
-                            width: 60.0 * pxPerMinute,
+                            width: 60.0 * kPxPerMinute,
                             child: Text(
                               DateFormat.Hm().format(
                                   _start.add(Duration(hours: h))),
@@ -149,19 +149,19 @@ class _ChannelGuideRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final end =
-        start.add(const Duration(hours: GuideScreen.hours));
+        start.add(const Duration(hours: kGuideHours));
 
     double widthOf(EpgEntry e) {
       final s = e.start.isBefore(start) ? start : e.start;
       final stop = e.stop.isAfter(end) ? end : e.stop;
-      return (stop.difference(s).inMinutes * GuideScreen.pxPerMinute)
+      return (stop.difference(s).inMinutes * kPxPerMinute)
           .clamp(30.0, 100000.0)
           .toDouble();
     }
 
     double offsetOf(EpgEntry e) {
       if (e.start.isBefore(start)) return 0;
-      return e.start.difference(start).inMinutes * GuideScreen.pxPerMinute;
+      return e.start.difference(start).inMinutes * kPxPerMinute;
     }
 
     return SizedBox(
@@ -192,7 +192,7 @@ class _ChannelGuideRow extends StatelessWidget {
                 scrollDirection: Axis.horizontal,
                 physics: const ClampingScrollPhysics(),
                 child: SizedBox(
-                  width: 60.0 * GuideScreen.pxPerMinute * GuideScreen.hours + 200,
+                  width: 60.0 * kPxPerMinute * kGuideHours + 200,
                   height: 56,
                   child: Stack(
                     children: [

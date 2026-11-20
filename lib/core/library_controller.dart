@@ -5,18 +5,18 @@ import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-import '../database/database.dart' as db;
-import '../models/models.dart';
-import '../services/m3u_parser.dart';
-import '../services/settings_service.dart';
-import '../services/sync_service.dart';
-import '../services/xtream_client.dart';
-import '../services/xmltv_parser.dart';
+import 'database/database.dart';
+import 'models/models.dart';
+import 'services/m3u_parser.dart';
+import 'services/settings_service.dart';
+import 'services/sync_service.dart';
+import 'services/xtream_client.dart';
+import 'services/xmltv_parser.dart';
 
 /// Central repository + observable state. Backed by local SQLite (Drift),
 /// replicated to Supabase by [SyncService].
 class LibraryController extends ChangeNotifier {
-  final db.AppDatabase db;
+  final AppDatabase db;
   final SettingsService settings;
   final SyncService sync;
 
@@ -24,10 +24,10 @@ class LibraryController extends ChangeNotifier {
   final http.Client _http = http.Client();
 
   List<Playlist> playlists = [];
-  final Map<String, db.ChannelRow> _channels = {};
+  final Map<String, ChannelRow> _channels = {};
   final Map<String, List<EpgEntry>> _epgCache = {};
-  Map<String, db.FavoriteRow> favorites = {};
-  Map<String, db.ProgressRow> progress = {};
+  Map<String, FavoriteRow> favorites = {};
+  Map<String, ProgressRow> progress = {};
   Set<String> viewed = {};
   Set<String> lockedCategories = {};
 
@@ -91,8 +91,9 @@ class LibraryController extends ChangeNotifier {
     progress = {for (final p in prog) p.key: p};
 
     viewed = (await (db.select(db.viewedRows)
-              ..where((r) => r.profileId.equals(pid))))
-        .map((v) => '$pid:${v.kind}:${v.itemId}')
+              ..where((r) => r.profileId.equals(pid)))
+            .map((v) => '$pid:${v.kind}:${v.itemId}')
+            .get())
         .toSet();
   }
 
@@ -102,7 +103,7 @@ class LibraryController extends ChangeNotifier {
       String name, String host, String user, String pass) async {
     final id = 'pl_${DateTime.now().millisecondsSinceEpoch}';
     final pl = Playlist(id: id, name: name, type: PlaylistType.xtream, host: host);
-    await db.into(db.playlistRows).insert(db.PlaylistRowsCompanion.insert(
+    await db.into(db.playlistRows).insert(PlaylistRowsCompanion.insert(
           id: id,
           name: name,
           kind: 'xtream',
@@ -119,7 +120,7 @@ class LibraryController extends ChangeNotifier {
     final id = 'pl_${DateTime.now().millisecondsSinceEpoch}';
     final pl = Playlist(
         id: id, name: name, type: PlaylistType.m3u, m3uUrl: m3uUrl, epgUrl: epgUrl);
-    await db.into(db.playlistRows).insert(db.PlaylistRowsCompanion.insert(
+    await db.into(db.playlistRows).insert(PlaylistRowsCompanion.insert(
           id: id,
           name: name,
           kind: 'm3u',
@@ -151,7 +152,7 @@ class LibraryController extends ChangeNotifier {
       final list = pl.isXtream ? await _fetchXtream(pl) : await _fetchM3u(pl);
       await db.insertAllChannels(list.map(_toCompanion).toList());
       for (final c in list) {
-        _channels[c.key] = db.ChannelRow(
+        _channels[c.key] = ChannelRow(
           key: c.key,
           playlistId: c.playlistId,
           kind: c.kind.name,
@@ -212,14 +213,14 @@ class LibraryController extends ChangeNotifier {
       byName[c.name.toLowerCase().trim()] = c.key;
     }
 
-    final rows = <db.EpgRowsCompanion>[];
+    final rows = <EpgRowsCompanion>[];
     final now = DateTime.now();
     final horizon = now.add(const Duration(days: 3));
     for (final e in entries) {
       if (e.stop.isBefore(now) || e.start.isAfter(horizon)) continue;
       final key = byTvgId[e.channelTvgId] ?? byName[e.channelTvgId.toLowerCase()];
       if (key == null) continue;
-      rows.add(db.EpgRowsCompanion.insert(
+      rows.add(EpgRowsCompanion.insert(
         key: '${pl.id}:${e.channelTvgId}:${e.start.millisecondsSinceEpoch}',
         playlistId: pl.id,
         channelTvgId: e.channelTvgId,
@@ -234,7 +235,7 @@ class LibraryController extends ChangeNotifier {
     _epgCache.clear();
   }
 
-  db.ChannelRowsCompanion _toCompanion(Channel c) => db.ChannelRowsCompanion.insert(
+  ChannelRowsCompanion _toCompanion(Channel c) => ChannelRowsCompanion.insert(
         key: c.key,
         playlistId: c.playlistId,
         kind: c.kind.name,
@@ -257,8 +258,8 @@ class LibraryController extends ChangeNotifier {
   bool _isHidden(String channelKey) =>
       favorites['${activeProfileId}:$channelKey:hidden'] != null;
 
-  List<db.ChannelRow> channels(MediaKind kind) {
-    bool excluded(db.ChannelRow c) =>
+  List<ChannelRow> channels(MediaKind kind) {
+    bool excluded(ChannelRow c) =>
         _isHidden(c.key) ||
         (c.category.isNotEmpty && isCategoryLocked(c.playlistId, c.category));
     return _channels.values
@@ -268,7 +269,7 @@ class LibraryController extends ChangeNotifier {
       ..sort((a, b) => (a.num ?? 1 << 30).compareTo(b.num ?? 1 << 30));
   }
 
-  db.ChannelRow? channelByKey(String key) => _channels[key];
+  ChannelRow? channelByKey(String key) => _channels[key];
 
   List<String> categories(MediaKind kind) {
     final set = <String>{};
@@ -280,7 +281,7 @@ class LibraryController extends ChangeNotifier {
 
   // ---------------------------------------------------------------- EPG
 
-  Future<List<EpgEntry>> epgForChannel(db.ChannelRow channel) async {
+  Future<List<EpgEntry>> epgForChannel(ChannelRow channel) async {
     final cached = _epgCache[channel.key];
     if (cached != null) return cached;
     final rows = await (db.select(db.epgRows)
@@ -305,13 +306,13 @@ class LibraryController extends ChangeNotifier {
   bool isFavorite(String channelKey) =>
       favorites['${activeProfileId}:$channelKey:favorite'] != null;
 
-  Future<void> toggleFavorite(db.ChannelRow c) async =>
+  Future<void> toggleFavorite(ChannelRow c) async =>
       _toggleMarker(c, 'favorite');
 
-  Future<void> toggleHidden(db.ChannelRow c) async =>
+  Future<void> toggleHidden(ChannelRow c) async =>
       _toggleMarker(c, 'hidden');
 
-  Future<void> _toggleMarker(db.ChannelRow c, String state) async {
+  Future<void> _toggleMarker(ChannelRow c, String state) async {
     final pid = activeProfileId;
     if (pid == null) return;
     final key = '$pid:${c.key}:$state';
@@ -319,7 +320,7 @@ class LibraryController extends ChangeNotifier {
       favorites.remove(key);
       await (db.delete(db.favoriteRows)..where((r) => r.key.equals(key))).go();
     } else {
-      final row = db.FavoriteRow(
+      final row = FavoriteRow(
         key: key,
         profileId: pid,
         playlistId: c.playlistId,
@@ -333,7 +334,7 @@ class LibraryController extends ChangeNotifier {
       favorites[key] = row;
       await db
           .into(db.favoriteRows)
-          .insertOnConflictUpdate(db.FavoriteRowsCompanion.insert(
+          .insertOnConflictUpdate(FavoriteRowsCompanion.insert(
             key: key,
             profileId: pid,
             playlistId: Value(c.playlistId),
@@ -349,23 +350,23 @@ class LibraryController extends ChangeNotifier {
     sync.schedulePush();
   }
 
-  List<db.ChannelRow> favoriteChannels() {
+  List<ChannelRow> favoriteChannels() {
     return favorites.values
         .where((f) => f.state == 'favorite')
         .map((f) => _channels['${f.playlistId}:${f.kind}:${f.itemId}'] ??
             _lookupByItemId(f))
-        .whereType<db.ChannelRow>()
+        .whereType<ChannelRow>()
         .toList();
   }
 
-  db.ChannelRow? _lookupByItemId(db.FavoriteRow f) {
+  ChannelRow? _lookupByItemId(FavoriteRow f) {
     for (final c in _channels.values) {
       if (c.kind == f.kind && _itemIdOf(c) == f.itemId) return c;
     }
     return null;
   }
 
-  String _itemIdOf(db.ChannelRow c) => c.key.substring(c.key.lastIndexOf(':') + 1);
+  String _itemIdOf(ChannelRow c) => c.key.substring(c.key.lastIndexOf(':') + 1);
 
   Future<void> toggleCategoryLock(String playlistId, String category) async {
     final id = '$playlistId:$category';
@@ -395,11 +396,11 @@ class LibraryController extends ChangeNotifier {
     );
   }
 
-  Future<void> saveProgress(db.ChannelRow c, int positionMs, int durationMs) async {
+  Future<void> saveProgress(ChannelRow c, int positionMs, int durationMs) async {
     final pid = activeProfileId;
     if (pid == null) return;
     final key = '$pid:${c.key}';
-    final row = db.ProgressRow(
+    final row = ProgressRow(
       key: key,
       profileId: pid,
       playlistId: c.playlistId,
@@ -413,7 +414,7 @@ class LibraryController extends ChangeNotifier {
     progress[key] = row;
     await db
         .into(db.progressRows)
-        .insertOnConflictUpdate(db.ProgressRowsCompanion.insert(
+        .insertOnConflictUpdate(ProgressRowsCompanion.insert(
           key: key,
           profileId: pid,
           playlistId: Value(c.playlistId),
@@ -431,7 +432,7 @@ class LibraryController extends ChangeNotifier {
   }
 
   List<WatchProgress> continueWatching() {
-    bool wanted(db.ProgressRow p) =>
+    bool wanted(ProgressRow p) =>
         p.kind != MediaKind.live.name &&
         p.durationMs > 0 &&
         p.positionMs / p.durationMs < 0.95;
@@ -452,14 +453,14 @@ class LibraryController extends ChangeNotifier {
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
   }
 
-  Future<void> markViewed(db.ChannelRow c) async {
+  Future<void> markViewed(ChannelRow c) async {
     final pid = activeProfileId;
     if (pid == null) return;
     final itemId = _itemIdOf(c);
     final id = '$pid:${c.kind}:$itemId';
     viewed.add(id);
     await db.into(db.viewedRows).insertOnConflictUpdate(
-          db.ViewedRowsCompanion.insert(
+          ViewedRowsCompanion.insert(
             key: id,
             profileId: pid,
             kind: c.kind,
@@ -470,12 +471,12 @@ class LibraryController extends ChangeNotifier {
     sync.schedulePush();
   }
 
-  bool isViewed(db.ChannelRow c) =>
+  bool isViewed(ChannelRow c) =>
       viewed.contains('${activeProfileId}:${c.kind}:${_itemIdOf(c)}');
 
   // ---------------------------------------------------------------- search / series
 
-  List<db.ChannelRow> search(String term) {
+  List<ChannelRow> search(String term) {
     if (term.trim().length < 2) return const [];
     final q = term.trim().toLowerCase();
     return _channels.values
@@ -484,7 +485,7 @@ class LibraryController extends ChangeNotifier {
         .toList();
   }
 
-  List<db.ChannelRow> episodesOf(db.ChannelRow series) {
+  List<ChannelRow> episodesOf(ChannelRow series) {
     if (series.seriesId == null) return [series];
     return _channels.values
         .where((c) => c.seriesId == series.seriesId)

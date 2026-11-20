@@ -94,13 +94,13 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _index = 0;
 
-  static const _tabs = <String, WidgetBuilder>{
-    'Home': HomeTab.new,
-    'Live TV': LiveScreen.new,
-    'Guide': GuideScreen.new,
-    'Filme & Serien': VodScreen.new,
-    'Suche': SearchScreen.new,
-    'Einstellungen': SettingsScreen.new,
+  static final _tabs = <String, WidgetBuilder>{
+    'Home': (c) => HomeTab(),
+    'Live TV': (c) => LiveScreen(),
+    'Guide': (c) => GuideScreen(),
+    'Filme & Serien': (c) => VodScreen(),
+    'Suche': (c) => SearchScreen(),
+    'Einstellungen': (c) => SettingsScreen(),
   };
 
   @override
