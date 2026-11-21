@@ -86,15 +86,15 @@ class _VodGridState extends State<_VodGrid> {
               : LayoutBuilder(
                   builder: (context, constraints) {
                     final columns =
-                        (constraints.maxWidth / 160).clamp(2, 8).floor();
+                        (constraints.maxWidth / 165).clamp(2, 8).floor();
                     return GridView.builder(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                       gridDelegate:
                           SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: columns,
-                        mainAxisSpacing: 12,
+                        mainAxisSpacing: 14,
                         crossAxisSpacing: 12,
-                        childAspectRatio: 0.72,
+                        childAspectRatio: 0.62,
                       ),
                       itemCount: items.length,
                       itemBuilder: (context, i) {

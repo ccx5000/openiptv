@@ -139,7 +139,7 @@ class _ProfileTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = Color(int.tryParse(
             profile.avatarColor.replaceFirst('#', '0xff')) ??
-        0xFF4F8CFF);
+        0xFFE8A33D);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),

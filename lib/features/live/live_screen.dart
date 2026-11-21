@@ -41,8 +41,9 @@ class _LiveScreenState extends State<LiveScreen> {
                 Text(
                   'Live TV',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.5,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 26,
+                        letterSpacing: -0.7,
                       ),
                 ),
                 const Spacer(),
@@ -76,14 +77,14 @@ class _LiveScreenState extends State<LiveScreen> {
                 )
               : LayoutBuilder(builder: (context, constraints) {
                   final width = constraints.maxWidth;
-                  final columns = (width / 185).clamp(2, 8).floor();
+                  final columns = (width / 170).clamp(2, 8).floor();
                   return GridView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: columns,
-                      mainAxisSpacing: 14,
-                      crossAxisSpacing: 14,
-                      childAspectRatio: 0.80,
+                      mainAxisSpacing: 16,
+                      crossAxisSpacing: 12,
+                      childAspectRatio: 0.62,
                     ),
                     itemCount: channels.length,
                     itemBuilder: (context, i) {
@@ -126,13 +127,13 @@ class _LockChip extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
           decoration: BoxDecoration(
             color: locked
-                ? const Color(0xFFE5484D).withValues(alpha: 0.16)
+                ? AppPalette.accent.withValues(alpha: 0.14)
                 : AppPalette.surface,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: locked
-                  ? const Color(0xFFE5484D).withValues(alpha: 0.5)
-                  : Colors.white.withValues(alpha: 0.07),
+                  ? AppPalette.accent.withValues(alpha: 0.5)
+                  : AppPalette.hairline,
             ),
           ),
           child: Row(
@@ -140,7 +141,7 @@ class _LockChip extends StatelessWidget {
               Icon(
                 locked ? Icons.lock_rounded : Icons.lock_open_rounded,
                 size: 18,
-                color: locked ? const Color(0xFFE5484D) : AppPalette.textDim,
+                color: locked ? AppPalette.accent : AppPalette.textDim2,
               ),
               const SizedBox(width: 8),
               Text(

@@ -339,8 +339,7 @@ class _GlassButton extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: primary ? AppPalette.accentGradient : null,
-        color: primary ? null : Colors.white.withValues(alpha: 0.12),
+        color: primary ? Colors.white : Colors.white.withValues(alpha: 0.12),
         border: Border.all(
           color: primary
               ? Colors.transparent
@@ -353,7 +352,7 @@ class _GlassButton extends StatelessWidget {
       child: Icon(
         icon,
         size: size * 0.52,
-        color: Colors.white,
+        color: primary ? Colors.black : Colors.white,
       ),
     );
     return InkWell(
@@ -372,9 +371,9 @@ class _LivePill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFFE5484D).withValues(alpha: 0.18),
+        color: AppPalette.live.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE5484D).withValues(alpha: 0.55)),
+        border: Border.all(color: AppPalette.live.withValues(alpha: 0.55)),
       ),
       child: const Row(
         mainAxisSize: MainAxisSize.min,
